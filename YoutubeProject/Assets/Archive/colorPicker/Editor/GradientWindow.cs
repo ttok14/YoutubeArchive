@@ -9,8 +9,9 @@ public class GradientWindow : EditorWindow
     public static bool isOpen;
 
     CustomGradient gradient;
-    Func<CustomGradient.Layout> layoutGetter;
-    int texSize;
+    Func<Layout> layoutGetter;
+    int texWidth = 32;
+    int texHeight = 32;
 
     const int borderSize = 10;
     const float keyWidth = 10;
@@ -21,7 +22,9 @@ public class GradientWindow : EditorWindow
     bool mouseIsDownOverKey;
     int selectedKeyIndex;
     bool needRepaint;
-    
+
+    float curNormalizedPos;
+
     private void OnGUI()
     {
         Draw();
@@ -36,28 +39,17 @@ public class GradientWindow : EditorWindow
 
     void Draw()
     {
-        int length;
+        gradientPreviewRect = new Rect(borderSize, borderSize, position.width - borderSize * 2, position.height * 0.5f);
 
-        if (layoutGetter() == CustomGradient.Layout.Horizontal)
-        {
-            gradientPreviewRect = new Rect(borderSize, borderSize, position.width - borderSize * 2, 25);
-        }
-        else
-        {
-            gradientPreviewRect = new Rect(borderSize, borderSize, position.width - borderSize * 2, position.height * 0.5f);
-        }
-
-        length = (int)gradientPreviewRect.width;
-
-        GUI.DrawTexture(gradientPreviewRect, gradient.GetTexture(length, layoutGetter()));
+        GUI.DrawTexture(gradientPreviewRect, gradient.GetTexture(texWidth, texHeight));
 
         keyRects = new Rect[gradient.NumKeys];
 
         for (int i = 0; i < gradient.NumKeys; i++)
         {
-            CustomGradient.ColorKey key = gradient.GetKey(i);
+            ColorKey key = gradient.GetKey(i);
             Rect keyRect = new Rect(
-                gradientPreviewRect.x + gradientPreviewRect.width * key.Time_ - keyWidth / 2f,
+                gradientPreviewRect.x + gradientPreviewRect.width * key.time - keyWidth / 2f,
                 gradientPreviewRect.yMax + borderSize,
                 keyWidth,
                 keyHeight);
@@ -67,20 +59,106 @@ public class GradientWindow : EditorWindow
                 EditorGUI.DrawRect(new Rect(keyRect.x - 2, keyRect.y - 2, keyRect.width + 4, keyRect.height + 4), Color.black);
             }
 
-            EditorGUI.DrawRect(keyRect, key.Color_);
+            EditorGUI.DrawRect(keyRect, key.color);
             keyRects[i] = keyRect;
-
         }
 
         Rect settingRect = new Rect(borderSize, keyRects[0].yMax + borderSize, position.width - borderSize * 2, position.height);
         GUILayout.BeginArea(settingRect);
+
         EditorGUI.BeginChangeCheck();
-        Color newColor = EditorGUILayout.ColorField(gradient.GetKey(selectedKeyIndex).Color_);
+        curNormalizedPos = EditorGUILayout.FloatField("Position", gradient.GetKey(selectedKeyIndex).time);
+        if(EditorGUI.EndChangeCheck())
+        {
+            float time = Mathf.Clamp(curNormalizedPos, 0f, 1f);
+            selectedKeyIndex = gradient.UpdateKeyTime(selectedKeyIndex, time);
+            gradient.UpdateTexture();
+        }
+
+        EditorGUI.BeginChangeCheck();
+        Color newColor = EditorGUILayout.ColorField(gradient.GetKey(selectedKeyIndex).color);
         if (EditorGUI.EndChangeCheck())
         {
             gradient.UpdateKeyColor(selectedKeyIndex, newColor);
+            gradient.UpdateTexture();
         }
-        gradient.blendMode = (CustomGradient.BlendMode)EditorGUILayout.EnumPopup("Blend Mode", gradient.blendMode);
+
+        EditorGUI.BeginChangeCheck();
+        gradient.blendMode = (BlendMode)EditorGUILayout.EnumPopup("Blend Mode", gradient.blendMode);
+        gradient.subBlendType = (SubBlendMethod)EditorGUILayout.EnumPopup("SubBlend", gradient.subBlendType);
+        if (EditorGUI.EndChangeCheck())
+        {
+            gradient.UpdateTexture();
+        }
+
+        if (gradient.subBlendType == SubBlendMethod.Corner)
+        {
+            EditorGUI.indentLevel++;
+
+            for (int i = 0; i < gradient.cornerColors.Count; i++)
+            {
+                var t = gradient.cornerColors[i];
+
+                EditorGUILayout.BeginHorizontal();
+                EditorGUI.BeginChangeCheck();
+
+                bool use = EditorGUILayout.Toggle(((SubBlend_Corner)i).ToString(), t.use);
+                Color32 color = t.color.Value;
+
+                if (t.use)
+                {
+                    color = EditorGUILayout.ColorField(t.color.Value);
+                }
+
+                if (EditorGUI.EndChangeCheck())
+                {
+                    gradient.ChangeSubBlend_Corner((SubBlend_Corner)i, use, color);
+                    gradient.UpdateTexture();
+                }
+
+                EditorGUILayout.EndHorizontal();
+            }
+
+            EditorGUI.indentLevel--;
+        }
+        else if (gradient.subBlendType == SubBlendMethod.Segment)
+        {
+            EditorGUI.indentLevel++;
+
+            for (int i = 0; i < gradient.segmentColors.Count; i++)
+            {
+                var t = gradient.segmentColors[i];
+
+                EditorGUILayout.BeginHorizontal();
+                EditorGUI.BeginChangeCheck();
+
+                bool use = EditorGUILayout.Toggle(((SubBlend_Segment)i).ToString(), t.use);
+                Color32 color = t.color.Value;
+
+                if (t.use)
+                {
+                    color = EditorGUILayout.ColorField(t.color.Value);
+                }
+
+                if (EditorGUI.EndChangeCheck())
+                {
+                    gradient.ChangeSubBlend_Segment((SubBlend_Segment)i, use, color);
+                    gradient.UpdateTexture();
+                }
+
+                EditorGUILayout.EndHorizontal();
+            }
+            
+            EditorGUI.indentLevel--;
+        }
+
+        GUILayout.Space(10);
+
+        if (GUILayout.Button("Reset"))
+        {
+            gradient.ResetSetting();
+            gradient.UpdateTexture();
+        }
         GUILayout.EndArea();
     }
 
@@ -102,12 +180,15 @@ public class GradientWindow : EditorWindow
                 }
             }
 
-            if (!mouseIsDownOverKey)
+            Rect addKeyRect = new Rect(borderSize, gradientPreviewRect.yMax + borderSize, position.width - borderSize * 2, keyHeight);
+
+            if (mouseIsDownOverKey == false && addKeyRect.Contains(guiEvent.mousePosition))
             {
                 Color randomColor = new Color(UnityEngine.Random.value, UnityEngine.Random.value, UnityEngine.Random.value);
                 float keyTime = Mathf.InverseLerp(gradientPreviewRect.x, gradientPreviewRect.xMax, guiEvent.mousePosition.x);
 
                 selectedKeyIndex = gradient.AddKey(randomColor, keyTime);
+                gradient.UpdateTexture();
                 mouseIsDownOverKey = true;
                 needRepaint = true;
             }
@@ -118,11 +199,12 @@ public class GradientWindow : EditorWindow
         {
             for (int i = 0; i < keyRects.Length; i++)
             {
-                if(keyRects[i].Contains(guiEvent.mousePosition))
+                if (keyRects[i].Contains(guiEvent.mousePosition))
                 {
                     gradient.RemoveKey(i);
+                    gradient.UpdateTexture();
 
-                    if(selectedKeyIndex >= i)
+                    if (selectedKeyIndex >= i)
                     {
                         selectedKeyIndex--;
                         selectedKeyIndex = Mathf.Clamp(selectedKeyIndex, 0, selectedKeyIndex);
@@ -143,6 +225,7 @@ public class GradientWindow : EditorWindow
         {
             float keyTime = Mathf.InverseLerp(gradientPreviewRect.x, gradientPreviewRect.xMax, guiEvent.mousePosition.x);
             selectedKeyIndex = gradient.UpdateKeyTime(selectedKeyIndex, keyTime);
+            gradient.UpdateTexture();
             needRepaint = true;
         }
 
@@ -158,10 +241,9 @@ public class GradientWindow : EditorWindow
         }
     }
 
-    public void SetGradient(CustomGradient gradient, Func<CustomGradient.Layout> layoutGetter)
+    public void SetGradient(CustomGradient gradient)
     {
         this.gradient = gradient;
-        this.layoutGetter = layoutGetter;
     }
 
     private void OnEnable()
