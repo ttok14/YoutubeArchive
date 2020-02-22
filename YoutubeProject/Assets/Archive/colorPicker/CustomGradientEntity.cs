@@ -20,7 +20,7 @@ public class CustomGradientEntity : MonoBehaviour, IPointerDownHandler, IDragHan
     [HideInInspector]
     public CustomGradientOverrider overrider;
 
-    public CustomGradientEntity[] overriderReceivers;
+    public CustomGradientEntity[] overrideReceivers;
 
     public Image imgTarget;
 
@@ -106,13 +106,13 @@ public class CustomGradientEntity : MonoBehaviour, IPointerDownHandler, IDragHan
 
     public void SendColorToNextReceiver(float xTime, float yTime)
     {
-        if (overriderReceivers != null)
+        if (overrideReceivers != null)
         {
-            for (int i = 0; i < overriderReceivers.Length; i++)
+            for (int i = 0; i < overrideReceivers.Length; i++)
             {
-                if (overriderReceivers[i] != null)
+                if (overrideReceivers[i] != null)
                 {
-                    overriderReceivers[i].OverrideColor(Evaluate(xTime, yTime));
+                    overrideReceivers[i].OverrideColor(Evaluate(xTime, yTime));
                 }
             }
         }
@@ -203,6 +203,9 @@ public class CustomGradientEntity : MonoBehaviour, IPointerDownHandler, IDragHan
 
     private void OnDrawGizmos()
     {
+        if (imgTarget == null)
+            return;
+
         Rect rt = imgTarget.rectTransform.rect;
 
         Color old = Gizmos.color;

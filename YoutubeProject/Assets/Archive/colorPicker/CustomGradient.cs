@@ -16,12 +16,6 @@ public struct ColorKey
 }
 
 [System.Serializable]
-public class TESTSTRUCT
-{
-    public string str;
-}
-
-[System.Serializable]
 public class ColorWithExistence
 {
     public bool use;
