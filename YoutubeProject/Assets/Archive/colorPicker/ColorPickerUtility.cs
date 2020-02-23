@@ -16,12 +16,20 @@ public enum Layout
 
 public enum SubBlend_Corner
 {
-    LeftTop, RightTop, LeftBottom, RightBottom, MAX
+    LeftTop,
+    RightTop,
+    LeftBottom,
+    RightBottom,
+    MAX
 }
 
 public enum SubBlend_Segment
 {
-    Left, Top, Right, Bottom, MAX
+    Left,
+    Top,
+    Right,
+    Bottom,
+    MAX
 }
 
 public enum CustomGradientRuntimeOverrideType
