@@ -43,8 +43,11 @@ public class CustomGradientEntity : MonoBehaviour, IPointerDownHandler, IDragHan
 
     bool updateColorOverrideChain;
 
+    Vector3 lastPos;
+
     void Start()
     {
+        lastPos = imgTarget.transform.position;
         CalculateFollowerClampCorners();
         imgTarget.sprite = Sprite.Create(gradient.GetTexture(texWidth, texHeight), new Rect(0, 0, texWidth, texHeight), Vector2.zero);
         gradient.UpdateTexture();
@@ -59,6 +62,12 @@ public class CustomGradientEntity : MonoBehaviour, IPointerDownHandler, IDragHan
 
     private void Update()
     {
+        if (lastPos != imgTarget.transform.position)
+        {
+            lastPos = imgTarget.transform.position;
+            CalculateFollowerClampCorners();
+        }
+
         if (updateColorOverrideChain)
         {
             updateColorOverrideChain = false;
@@ -108,11 +117,13 @@ public class CustomGradientEntity : MonoBehaviour, IPointerDownHandler, IDragHan
     {
         if (overrideReceivers != null)
         {
+            var colorSent = Evaluate(xTime, yTime);
+
             for (int i = 0; i < overrideReceivers.Length; i++)
             {
                 if (overrideReceivers[i] != null)
                 {
-                    overrideReceivers[i].OverrideColor(Evaluate(xTime, yTime));
+                    overrideReceivers[i].OverrideColor(colorSent);
                 }
             }
         }
@@ -148,7 +159,7 @@ public class CustomGradientEntity : MonoBehaviour, IPointerDownHandler, IDragHan
             Mathf.Lerp(followerClampPoses[0].y, followerClampPoses[1].y, y),
             followerClampPoses[0].z);
     }
-    
+
     Vector3 ConvertScreenToWorld(RectTransform rt, Vector2 pos)
     {
         if (canvas == null)
@@ -193,7 +204,7 @@ public class CustomGradientEntity : MonoBehaviour, IPointerDownHandler, IDragHan
             return;
         SetPositionByFollowerScreenPos(eventData.position);
     }
-    
+
     public void OnPointerDown(PointerEventData eventData)
     {
         if (pointerFollower == null)
